@@ -18,7 +18,7 @@ const SECTIONS = [
 export default function Dashboard() {
   const [view, setView] = useState<"dashboard" | "saved">("dashboard")
   const [dates, setDates] = useState<DateEntry[]>([])
-  const [selectedDate, setSelectedDate] = useState<string>("")
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [stats, setStats] = useState<Stats | null>(null)
   const [articles, setArticles] = useState<Article[]>([])
   const [section, setSection] = useState("")
@@ -60,11 +60,10 @@ export default function Dashboard() {
     })
   }, [loadDates, loadData])
 
-  // 날짜/섹션 변경 시 재로드
+  // 날짜/섹션 변경 시 재로드 (초기 null 상태에서는 실행 안 함)
   useEffect(() => {
-    if (selectedDate !== undefined) {
-      loadData(selectedDate, section)
-    }
+    if (selectedDate === null) return
+    loadData(selectedDate, section)
   }, [selectedDate, section, loadData])
 
   const handleCrawl = async () => {
@@ -73,15 +72,22 @@ export default function Dashboard() {
     setToast(res.message)
     setTimeout(() => setToast(""), 4000)
 
-    // 5초 후 날짜 목록 갱신 → "수동 진행"으로 전환
-    setTimeout(async () => {
+    // 10초마다 "수동 진행" 등장 여부 폴링 (최대 3분)
+    let attempts = 0
+    const poll = async () => {
+      attempts++
       const d = await loadDates()
       const manual = d.find((e) => e.date === "수동 진행")
       if (manual) {
         setSelectedDate("수동 진행")
+        setCrawling(false)
+      } else if (attempts < 18) {
+        setTimeout(poll, 10000)
+      } else {
+        setCrawling(false)
       }
-      setCrawling(false)
-    }, 5000)
+    }
+    setTimeout(poll, 10000)
   }
 
   const handleSaveToggle = async (articleId: number, saved: boolean) => {
@@ -98,7 +104,7 @@ export default function Dashboard() {
       <SavedArticles
         onBack={() => {
           setView("dashboard")
-          loadData(selectedDate, section)
+          loadData(selectedDate ?? "", section)
         }}
       />
     )
@@ -125,7 +131,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-3 flex-wrap justify-end">
             {/* 날짜 드롭박스 */}
             <select
-              value={selectedDate}
+              value={selectedDate ?? ""}
               onChange={(e) => setSelectedDate(e.target.value)}
               className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-700 cursor-pointer"
             >
