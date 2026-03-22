@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Article, Stats, DateEntry } from "@/lib/types"
-import { fetchArticles, fetchStats, fetchDates, triggerCrawl, fetchSavedIds } from "@/lib/api"
+import { fetchArticles, fetchStats, fetchDates, fetchSavedIds } from "@/lib/api"
 import StatCard from "./StatCard"
 import ArticleCard from "./ArticleCard"
 import SavedArticles from "./SavedArticles"
+import ManualCrawl from "./ManualCrawl"
 
 const SECTIONS = [
   { key: "", label: "전체" },
@@ -16,7 +17,7 @@ const SECTIONS = [
 ]
 
 export default function Dashboard() {
-  const [view, setView] = useState<"dashboard" | "saved">("dashboard")
+  const [view, setView] = useState<"dashboard" | "saved" | "manual">("dashboard")
   const [dates, setDates] = useState<DateEntry[]>([])
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [stats, setStats] = useState<Stats | null>(null)
@@ -24,8 +25,6 @@ export default function Dashboard() {
   const [section, setSection] = useState("")
   const [savedIds, setSavedIds] = useState<Set<number>>(new Set())
   const [loading, setLoading] = useState(false)
-  const [crawling, setCrawling] = useState(false)
-  const [toast, setToast] = useState("")
 
   // 날짜 목록 로드
   const loadDates = useCallback(async () => {
@@ -66,30 +65,6 @@ export default function Dashboard() {
     loadData(selectedDate, section)
   }, [selectedDate, section, loadData])
 
-  const handleCrawl = async () => {
-    setCrawling(true)
-    const res = await triggerCrawl()
-    setToast(res.message)
-    setTimeout(() => setToast(""), 4000)
-
-    // 10초마다 "수동 진행" 등장 여부 폴링 (최대 3분)
-    let attempts = 0
-    const poll = async () => {
-      attempts++
-      const d = await loadDates()
-      const manual = d.find((e) => e.date === "수동 진행")
-      if (manual) {
-        setSelectedDate("수동 진행")
-        setCrawling(false)
-      } else if (attempts < 18) {
-        setTimeout(poll, 10000)
-      } else {
-        setCrawling(false)
-      }
-    }
-    setTimeout(poll, 10000)
-  }
-
   const handleSaveToggle = async (articleId: number, saved: boolean) => {
     setSavedIds((prev) => {
       const next = new Set(prev)
@@ -108,6 +83,10 @@ export default function Dashboard() {
         }}
       />
     )
+  }
+
+  if (view === "manual") {
+    return <ManualCrawl onBack={() => setView("dashboard")} />
   }
 
   // 섹션 필터링된 기사 (그룹핑 포함)
@@ -146,28 +125,21 @@ export default function Dashboard() {
             </select>
 
             <button
+              onClick={() => setView("manual")}
+              className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors whitespace-nowrap"
+            >
+              수동 수집
+            </button>
+
+            <button
               onClick={() => setView("saved")}
               className="text-sm text-gray-600 hover:text-gray-800 border border-gray-200 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
             >
               저장된 기사 보기
             </button>
-
-            <button
-              onClick={handleCrawl}
-              disabled={crawling}
-              className="text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-4 py-2 rounded-lg transition-colors whitespace-nowrap"
-            >
-              {crawling ? "수집 중..." : "기사 수집"}
-            </button>
           </div>
         </div>
       </header>
-
-      {toast && (
-        <div className="fixed top-20 right-6 bg-green-600 text-white text-sm px-4 py-2 rounded-lg shadow-lg z-50">
-          {toast}
-        </div>
-      )}
 
       <main className="max-w-6xl mx-auto px-6 py-8 space-y-6">
         {/* 통계 카드 4개 */}

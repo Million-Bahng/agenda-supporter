@@ -66,21 +66,12 @@ def get_dates(db: Session = Depends(get_db)):
     rows = (
         db.query(Article.collected_date, func.count(Article.id))
         .filter(Article.report_section != "")
+        .filter(Article.collected_date != "수동 진행")
         .group_by(Article.collected_date)
         .order_by(desc(Article.collected_date))
         .all()
     )
-    # "수동 진행"을 맨 앞으로
-    result = []
-    manual = None
-    for date_str, count in rows:
-        if date_str == "수동 진행":
-            manual = {"date": date_str, "count": count}
-        else:
-            result.append({"date": date_str, "count": count})
-    if manual:
-        result.insert(0, manual)
-    return result
+    return [{"date": date_str, "count": count} for date_str, count in rows]
 
 
 # ─────────────────────────────────────────────
